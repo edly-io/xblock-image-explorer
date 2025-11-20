@@ -1,8 +1,6 @@
 import unittest
 from mock import patch
-from lxml import etree
-
-from parsel import Selector
+from lxml import etree, html
 
 from django.test import override_settings
 from xblock.field_data import DictFieldData
@@ -99,9 +97,12 @@ class TestImageExplorerBlock(unittest.TestCase):
             xmltree.find('description'), absolute_urls=True
         )
 
-        relative_urls = Selector(text=description).css('::attr(href),::attr(src)').extract()
-        for url in relative_urls:
-            self.assertEqual(url, self.processed_absolute_url)
+        fragment = html.fragment_fromstring(description, create_parent=True)
+        for element in fragment.xpath('.//*[@href or @src]'):
+            for attr in ('href', 'src'):
+                value = element.get(attr)
+                if value:
+                    self.assertEqual(value, self.processed_absolute_url)
 
     def test_student_view_multi_device_support(self):
         """

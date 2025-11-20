@@ -33,7 +33,6 @@ from urllib.parse import urljoin
 
 from django.conf import settings
 from lxml import etree, html
-from parsel import Selector
 from xblock.completable import XBlockCompletionMode
 from xblock.core import XBlock
 from xblock.fragment import Fragment
@@ -369,11 +368,21 @@ class ImageExplorerBlock(XBlock):
         return None
 
     def _change_relative_url_to_absolute(self, text):
-        if text:
-            relative_urls = Selector(text=text).css('::attr(href),::attr(src)').extract()
-            for url in relative_urls:
-                text = text.replace(url, self._replace_static_from_url(url))
-        return text
+        if not text:
+            return text
+        try:
+            fragment = html.fragment_fromstring(text, create_parent=True)
+        except etree.ParserError:
+            return text
+        for element in fragment.xpath('.//*[@href or @src]'):
+            for attr in ('href', 'src'):
+                value = element.get(attr)
+                if value:
+                    element.set(attr, self._replace_static_from_url(value))
+        return ''.join(
+            etree.tostring(child, encoding=str)
+            for child in fragment
+        )
 
     def _get_hotspots(self, xmltree, absolute_urls=False):
         """
